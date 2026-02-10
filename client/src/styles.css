@@ -360,6 +360,10 @@ a {
 
 /* Mobile */
 @media (max-width: 820px) {
+  /* Make room for the fixed search dock + FABs so lower inputs remain tappable. */
+  .legacyShell {
+    padding-bottom: 170px;
+  }
   .homeTopInner {
     flex-direction: column;
     align-items: stretch;
@@ -496,6 +500,22 @@ a {
   top: 50%;
   transform: translate(-50%, -50%);
   width: min(760px, calc(100vw - 28px));
+}
+
+/* Prevent fixed overlays from accidentally "eating" taps on mobile browsers.
+   Containers don't receive pointer events, but their interactive children do. */
+.fabRow,
+.searchDock,
+.searchResults,
+.modalBackdrop,
+.modalCard {
+  pointer-events: none;
+}
+.fabRow *,
+.searchDock *,
+.searchResults *,
+.modalCard * {
+  pointer-events: auto;
 }
 .modalHead {
   display: flex;
