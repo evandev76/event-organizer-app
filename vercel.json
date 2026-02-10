@@ -9,8 +9,11 @@
     }
   ],
   "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "https://event-organizer-app-76-production.up.railway.app/api/$1"
+    },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/" }
   ]
 }
-
