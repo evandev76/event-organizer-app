@@ -5,3 +5,4 @@ data/*.tmp
 .env
 .env.*.local
 .vercel
+client/dist/
