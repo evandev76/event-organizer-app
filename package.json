@@ -3,8 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "postinstall": "prisma generate",
     "dev": "node server/index.js",
     "start": "node server/index.js",
+    "start:railway": "prisma migrate deploy && node server_prod/index.js",
     "db:up": "docker compose up -d db",
     "db:down": "docker compose down",
     "prisma:generate": "prisma generate",
