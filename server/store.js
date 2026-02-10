@@ -5,7 +5,7 @@ const DEFAULT_DB = {
   version: 1,
   groups: [], // { code, name, createdAt }
   events: [], // { id, groupCode, title, description, start, end, reminderMinutes, createdAt, updatedAt, comments: [] }
-  groupChat: [], // { id, groupCode, kind, author, text, eventId, createdAt, by }
+  groupChat: [], // { id, groupCode, kind, author, text, eventId, createdAt, by, pinnedAt?, pinnedBy? }
   pins: {}, // { [groupCode]: [eventId, ...] }
 };
 
@@ -60,6 +60,8 @@ export async function readDb() {
     if (typeof m.text !== "string") m.text = "";
     if (typeof m.eventId !== "string") m.eventId = "";
     if (typeof m.createdAt !== "string") m.createdAt = new Date().toISOString();
+    if (typeof m.pinnedAt !== "string") m.pinnedAt = "";
+    if (typeof m.pinnedBy !== "string") m.pinnedBy = "";
     if (typeof m.by !== "string") m.by = "";
     if (!m.reactions || typeof m.reactions !== "object") m.reactions = {}; // emoji -> [clientId]
   }

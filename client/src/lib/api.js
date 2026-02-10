@@ -1,5 +1,16 @@
+const API_BASE = String(import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+
+function apiUrl(path) {
+  const p = String(path || "");
+  if (!p) return p;
+  if (/^https?:\/\//i.test(p)) return p;
+  if (!API_BASE) return p;
+  return `${API_BASE}${p.startsWith("/") ? p : `/${p}`}`;
+}
+
 async function apiFetch(path, { method = "GET", body } = {}) {
-  const res = await fetch(path, {
+  const url = apiUrl(path);
+  const res = await fetch(url, {
     method,
     headers: { "content-type": "application/json" },
     credentials: "include",
@@ -8,7 +19,7 @@ async function apiFetch(path, { method = "GET", body } = {}) {
   const data = await res.json().catch(() => null);
   if (!res.ok || !data || data.ok === false) {
     const msg = data?.error || `Erreur API (${res.status})`;
-    throw new Error(`${msg} [${method} ${path}]`);
+    throw new Error(`${msg} [${method} ${url}]`);
   }
   return data;
 }

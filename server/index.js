@@ -670,18 +670,50 @@ app.get("/api/groups/:code/chat", async (req, res) => {
   const clientId = clientIdFromReq(req);
   const db = got.db;
   const pins = pinsForGroup(db, got.code);
-  const messages = db.groupChat
+  const all = db.groupChat
     .filter((m) => m.groupCode === got.code)
     .slice()
     .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
-    .slice(-200)
+    .slice(-200);
+
+  const pinnedMessages = all
+    .filter((m) => Boolean(m && m.kind === "text" && m.pinnedAt))
+    .slice()
+    .sort((a, b) => String(b.pinnedAt).localeCompare(String(a.pinnedAt)))
+    .slice(0, 15)
     .map((m) => {
-      const { summary, mine } = reactionSummary(m.reactions, clientId);
-      const canEdit = Boolean(clientId && m.by && m.by === clientId && m.kind === "text");
-      const canDelete = canEdit;
-      return { ...m, by: undefined, reactions: summary, myReactions: mine, canEdit, canDelete };
-    }); // don't expose client ids
-  return res.json({ ok: true, chat: { pins, messages } });
+      const canUnpin = Boolean(clientId && m.by && m.by === clientId && m.kind === "text");
+      return {
+        id: m.id,
+        kind: m.kind,
+        author: m.author || "Anonyme",
+        text: m.text,
+        createdAt: m.createdAt,
+        pinnedAt: m.pinnedAt || "",
+        pinnedBy: "", // don't expose client ids
+        canUnpin,
+      };
+    });
+
+  const messages = all.map((m) => {
+    const { summary, mine } = reactionSummary(m.reactions, clientId);
+    const canEdit = Boolean(clientId && m.by && m.by === clientId && m.kind === "text");
+    const canDelete = canEdit;
+    const canPin = canEdit;
+    return {
+      ...m,
+      by: undefined, // don't expose client ids
+      pinnedBy: undefined,
+      reactions: summary,
+      myReactions: mine,
+      pinnedAt: m.pinnedAt || "",
+      canPin,
+      canEdit,
+      canDelete,
+    };
+  });
+
+  return res.json({ ok: true, chat: { pins, pinnedMessages, messages } });
 });
 
 app.post("/api/groups/:code/chat", async (req, res) => {
@@ -704,12 +736,42 @@ app.post("/api/groups/:code/chat", async (req, res) => {
     text,
     eventId: "",
     createdAt: nowIso(),
+    pinnedAt: "",
+    pinnedBy: "",
     by: clientId,
     reactions: {},
   };
   db.groupChat.push(m);
   await writeDb(db);
-  return res.json({ ok: true, message: { ...m, by: undefined, reactions: {}, myReactions: {}, canEdit: true, canDelete: true } });
+  return res.json({
+    ok: true,
+    message: { ...m, by: undefined, pinnedBy: undefined, reactions: {}, myReactions: {}, canPin: true, canEdit: true, canDelete: true },
+  });
+});
+
+app.post("/api/groups/:code/chat/:msgId/pin", async (req, res) => {
+  const got = await getGroupOr404(res, req.params.code);
+  if (got.res) return got.res;
+  const clientId = clientIdFromReq(req);
+  if (!clientId) return bad(res, 401, "Client invalide.");
+
+  const msgId = String(req.params.msgId || "");
+  if (!msgId) return bad(res, 400, "Message invalide.");
+
+  const db = got.db;
+  const idx = db.groupChat.findIndex((m) => m.groupCode === got.code && m.id === msgId);
+  if (idx === -1) return bad(res, 404, "Message introuvable.");
+  const m = db.groupChat[idx];
+  if (m.kind !== "text") return bad(res, 400, "Message non epinglable.");
+  if (!m.by || m.by !== clientId) return bad(res, 403, "Acces refuse.");
+
+  const nextPinnedAt = m.pinnedAt ? "" : nowIso();
+  m.pinnedAt = nextPinnedAt;
+  m.pinnedBy = nextPinnedAt ? clientId : "";
+  db.groupChat[idx] = m;
+  await writeDb(db);
+
+  return res.json({ ok: true, pinnedAt: nextPinnedAt });
 });
 
 app.post("/api/groups/:code/chat/:msgId/react", async (req, res) => {
@@ -759,7 +821,20 @@ app.put("/api/groups/:code/chat/:msgId", async (req, res) => {
   await writeDb(db);
 
   const { summary, mine } = reactionSummary(m.reactions, clientId);
-  return res.json({ ok: true, message: { ...m, by: undefined, reactions: summary, myReactions: mine, canEdit: true, canDelete: true } });
+  return res.json({
+    ok: true,
+    message: {
+      ...m,
+      by: undefined,
+      pinnedBy: undefined,
+      reactions: summary,
+      myReactions: mine,
+      pinnedAt: m.pinnedAt || "",
+      canPin: true,
+      canEdit: true,
+      canDelete: true,
+    },
+  });
 });
 
 app.delete("/api/groups/:code/chat/:msgId", async (req, res) => {

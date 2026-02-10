@@ -20,6 +20,28 @@ export function createApp() {
   app.use(express.json({ limit: "300kb" }));
   app.use(cookieParser());
 
+  // CORS for separate frontend domain (Vercel) calling the API (Railway) with cookies.
+  // Configure one or more exact origins via CORS_ORIGINS="https://a.com,https://b.com".
+  const corsOriginsRaw = String(process.env.CORS_ORIGINS || process.env.CORS_ORIGIN || "").trim();
+  const corsOrigins = corsOriginsRaw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (corsOrigins.length) {
+    app.use((req, res, next) => {
+      const origin = String(req.headers.origin || "");
+      if (origin && corsOrigins.includes(origin)) {
+        res.setHeader("Access-Control-Allow-Origin", origin);
+        res.setHeader("Vary", "Origin");
+        res.setHeader("Access-Control-Allow-Credentials", "true");
+        res.setHeader("Access-Control-Allow-Headers", "content-type");
+        res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+      }
+      if (req.method === "OPTIONS") return res.status(204).send("");
+      return next();
+    });
+  }
+
   // Serve the React build if present (Phase 5). Otherwise keep a tiny API landing page.
   const distDir = path.resolve(process.cwd(), "client", "dist");
   const distIndex = path.join(distDir, "index.html");
