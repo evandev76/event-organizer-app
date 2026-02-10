@@ -1,0 +1,345 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Notes:
+// - This is the initial "prod-ready" schema proposal. We'll refine during Phase 1.
+// - Email verification is V2 (so user has email but not required to be verified in V1).
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  displayName  String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions               Session[]
+  passwordResetTokens    PasswordResetToken[]
+  memberships            GroupMembership[]
+  createdGroups          Group[]            @relation("GroupOwner")
+  createdGroupInvites    GroupInvite[]      @relation("GroupInviteCreator")
+  createdEvents          Event[]            @relation("EventCreator")
+  eventComments          EventComment[]
+  eventCommentReactions  EventCommentReaction[]
+  groupMessages          GroupChatMessage[]
+  groupMessageReactions  GroupMessageReaction[]
+  pinnedGroupMessages    GroupChatMessage[] @relation("PinnedBy")
+  eventRatings           EventRating[]
+  createdEventPolls      EventPoll[]        @relation("EventPollCreator")
+  eventPollVotes         EventPollVote[]
+  friendRequestsSent     FriendRequest[]    @relation("FriendRequestFrom")
+  friendRequestsReceived FriendRequest[]    @relation("FriendRequestTo")
+  friendsA               Friend[]           @relation("FriendA")
+  friendsB               Friend[]           @relation("FriendB")
+  blocksInitiated        Block[]            @relation("Blocker")
+  blocksReceived         Block[]            @relation("Blocked")
+  preferences            UserPreference?
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+  ip        String?
+  userAgent String?
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Group {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ownerId String?
+  owner   User?   @relation("GroupOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  memberships GroupMembership[]
+  invites     GroupInvite[]
+  events      Event[]
+  messages    GroupChatMessage[]
+  pins        GroupPinnedEvent[]
+
+  @@index([createdAt])
+}
+
+model GroupMembership {
+  id        String   @id @default(cuid())
+  groupId   String
+  userId    String
+  role      String   // owner|admin|member
+  createdAt DateTime @default(now())
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([userId])
+  @@index([groupId])
+}
+
+model GroupInvite {
+  id              String   @id @default(cuid())
+  token           String   @unique
+  groupId         String
+  createdByUserId String
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+  usedCount       Int      @default(0)
+  maxUses         Int?
+
+  group   Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  creator User  @relation("GroupInviteCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  @@index([groupId])
+  @@index([expiresAt])
+}
+
+model Event {
+  id              String   @id @default(cuid())
+  groupId         String
+  title           String
+  description     String
+  startAt         DateTime
+  endAt           DateTime
+  reminderMinutes Int
+  createdByUserId String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  group   Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  creator User  @relation("EventCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  comments EventComment[]
+  ratings  EventRating[]
+  poll     EventPoll?
+  pins     GroupPinnedEvent[]
+
+  @@index([groupId, startAt])
+  @@index([groupId, createdAt])
+}
+
+model EventComment {
+  id        String   @id @default(cuid())
+  eventId   String
+  userId    String
+  text      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime?
+
+  event     Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  author    User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reactions EventCommentReaction[]
+
+  @@index([eventId, createdAt])
+  @@index([userId])
+}
+
+model EventCommentReaction {
+  id        String   @id @default(cuid())
+  commentId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  comment EventComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId, emoji])
+  @@index([commentId])
+  @@index([userId])
+}
+
+model GroupChatMessage {
+  id        String   @id @default(cuid())
+  groupId   String
+  userId    String?
+  kind      String   // text|system|event
+  text      String
+  eventId   String?
+  pinnedAt  DateTime?
+  pinnedByUserId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime?
+
+  group     Group                 @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  author    User?                 @relation(fields: [userId], references: [id], onDelete: SetNull)
+  pinnedBy  User?                 @relation("PinnedBy", fields: [pinnedByUserId], references: [id], onDelete: SetNull)
+  reactions GroupMessageReaction[]
+
+  @@index([groupId, createdAt])
+  @@index([groupId, pinnedAt])
+  @@index([userId])
+}
+
+model GroupMessageReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  message GroupChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
+  @@index([userId])
+}
+
+// Composite unique needed for reaction toggle.
+// Prisma needs an explicit unique constraint for the `findUnique` used in code.
+// (Without this, we'll switch to `findFirst`.)
+// Note: This is already unique above; the name below is for client access.
+// Prisma generates the compound field name automatically based on columns.
+
+model GroupPinnedEvent {
+  id       String   @id @default(cuid())
+  groupId  String
+  eventId  String
+  pinnedAt DateTime @default(now())
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, eventId])
+  @@index([groupId, pinnedAt])
+}
+
+model EventRating {
+  id        String   @id @default(cuid())
+  eventId   String
+  userId    String
+  value     Int      // 1 or -1
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@index([userId])
+}
+
+model EventPoll {
+  id              String   @id @default(cuid())
+  eventId         String   @unique
+  question        String
+  createdByUserId String
+  createdAt       DateTime @default(now())
+
+  event   Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  creator User             @relation("EventPollCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  options EventPollOption[]
+  votes   EventPollVote[]
+}
+
+model EventPollOption {
+  id     String @id @default(cuid())
+  pollId String
+  text   String
+  order  Int
+
+  poll  EventPoll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes EventPollVote[]
+
+  @@index([pollId, order])
+}
+
+model EventPollVote {
+  id       String   @id @default(cuid())
+  pollId   String
+  userId   String
+  optionId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  poll   EventPoll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  option EventPollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  @@unique([pollId, userId])
+  @@index([pollId])
+  @@index([userId])
+}
+
+model FriendRequest {
+  id        String   @id @default(cuid())
+  fromUserId String
+  toUserId   String
+  status     String   // pending|accepted|declined|cancelled
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  from User @relation("FriendRequestFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  to   User @relation("FriendRequestTo", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@unique([fromUserId, toUserId])
+  @@index([toUserId, status])
+  @@index([fromUserId, status])
+}
+
+model Friend {
+  id      String   @id @default(cuid())
+  userIdA String
+  userIdB String
+  createdAt DateTime @default(now())
+
+  userA User @relation("FriendA", fields: [userIdA], references: [id], onDelete: Cascade)
+  userB User @relation("FriendB", fields: [userIdB], references: [id], onDelete: Cascade)
+
+  @@unique([userIdA, userIdB])
+  @@index([userIdA])
+  @@index([userIdB])
+}
+
+model Block {
+  id             String   @id @default(cuid())
+  blockerUserId  String
+  blockedUserId  String
+  createdAt      DateTime @default(now())
+
+  blocker User @relation("Blocker", fields: [blockerUserId], references: [id], onDelete: Cascade)
+  blocked User @relation("Blocked", fields: [blockedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerUserId, blockedUserId])
+  @@index([blockerUserId])
+  @@index([blockedUserId])
+}
+
+model UserPreference {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Examples (we'll expand as needed):
+  allowEmailDiscoverability Boolean @default(true)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

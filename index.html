@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kifekoi - Evenements entre amis</title>
+    <meta name="description" content="Application simple pour organiser des evenements entre amis (groupes, notifications, calendrier)." />
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./styles.css?v=2026-02-09-7" />
+  </head>
+  <body>
+    <div class="app" id="app">
+      <header class="topbar">
+        <div class="brand">
+          <div class="logo" aria-hidden="true">K</div>
+          <div>
+            <div class="brand-title">Kifekoi</div>
+            <div class="brand-subtitle">Evenements entre amis</div>
+          </div>
+        </div>
+
+        <div class="topbar-actions">
+          <button class="btn btn-ghost btn-small viewbtn on" id="btnViewCalendar" type="button">Calendrier</button>
+          <button class="btn btn-ghost btn-small viewbtn" id="btnViewHub" type="button">Groupes &amp; amis</button>
+        </div>
+      </header>
+
+      <div class="layout">
+        <aside class="sidebar">
+          <div class="panel panel-group">
+            <div class="panel-title">Groupe (lien d'invitation)</div>
+            <div class="row">
+              <input id="joinCode" class="input" placeholder="Code (ex: A1B2C3D4)" maxlength="16" />
+              <button id="btnJoin" class="btn btn-small" type="button">Rejoindre</button>
+            </div>
+            <div class="row">
+              <input id="groupName" class="input" placeholder="Nom du groupe" maxlength="40" />
+              <button id="btnCreateGroup" class="btn btn-small" type="button">Creer</button>
+            </div>
+            <div class="row">
+              <select id="groupSelect" class="select" aria-label="Mes groupes (memorises)"></select>
+            </div>
+            <div class="row">
+              <button id="btnLeaveGroup" class="btn btn-ghost btn-small" type="button">Quitter</button>
+              <button id="btnRemoveGroup" class="btn btn-ghost btn-small danger" type="button">Supprimer</button>
+            </div>
+            <div class="row">
+              <input id="weatherCity" class="input" maxlength="60" placeholder="Ville meteo (ex: Paris)" />
+              <button id="btnSaveCity" class="btn btn-small" type="button">OK</button>
+            </div>
+            <div class="muted" id="groupHint"></div>
+          </div>
+
+          <div class="panel panel-chat">
+            <button class="panel-title panel-title-btn" id="btnToggleGroupChat" type="button" aria-expanded="false">
+              Discussions
+              <span class="chev" aria-hidden="true">▾</span>
+            </button>
+          <div id="groupChatBody" class="collapse hidden">
+              <div class="pins" id="groupPins"></div>
+              <div class="gchat-list" id="groupChatList" aria-label="Discussion du groupe"></div>
+              <div class="quick" id="groupQuick"></div>
+              <div class="gchat-compose">
+                <input class="input" id="groupChatText" maxlength="500" placeholder="Message pour le groupe..." />
+                <button class="btn btn-small" id="btnGroupChatSend" type="button">Envoyer</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel panel-day">
+            <div class="panel-title">Jour selectionne</div>
+            <div class="muted" id="selectedDayLabel">Aucun</div>
+            <div class="day-list" id="dayEventList"></div>
+          </div>
+
+          <div class="panel panel-tip">
+            <div class="panel-title">Astuce</div>
+            <div class="muted">
+              Clique une date pour voir les evenements du jour. Clique un evenement pour voir sa description.
+            </div>
+          </div>
+        </aside>
+
+        <main class="main">
+          <section id="calendarView">
+            <div class="calendar-header">
+              <div class="calendar-nav">
+                <button class="btn btn-ghost" id="btnPrev" type="button">◀</button>
+                <button class="btn btn-ghost" id="btnToday" type="button">Aujourd'hui</button>
+                <button class="btn btn-ghost" id="btnNext" type="button">▶</button>
+              </div>
+              <div class="calendar-title" id="monthLabel">...</div>
+            </div>
+
+            <div class="calendar" id="calendar" aria-label="Calendrier"></div>
+
+            <footer class="footer muted">
+              Donnees locales (localStorage). Notifications: seulement quand la page est ouverte.
+              <span id="buildStamp" style="margin-left:10px"></span>
+            </footer>
+          </section>
+
+          <section id="hubView" class="hidden" aria-label="Groupes et amis">
+            <div class="hub-grid">
+              <div class="panel panel-hub">
+                <div class="panel-title">Mes groupes</div>
+                <div class="hub-groups" id="hubGroups"></div>
+                <div class="row" style="margin-top:10px">
+                  <button class="btn btn-ghost btn-small" id="btnHubRefresh" type="button">Rafraichir noms</button>
+                </div>
+              </div>
+              <div class="panel panel-hub">
+                <div class="panel-title">Amis (pseudos du groupe)</div>
+                <div class="muted" id="hubFriendsHint"></div>
+                <div class="hub-friends" id="hubFriends"></div>
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <div class="fab-row" aria-label="Actions rapides">
+      <button class="fab fab-mini" id="btnNotifications" type="button" aria-label="Notifications">
+        <span class="fab-badge hidden" id="notifDot" aria-hidden="true"></span>
+        <svg class="fab-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 4v-4H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm0 2v10h2h.7L9 14h11V6H4Zm3 2h10v2H7V8Zm0 4h7v2H7v-2Z"
+          />
+        </svg>
+      </button>
+      <button class="fab" id="btnNewEvent" type="button" aria-label="Nouvel evenement">
+        +
+      </button>
+    </div>
+
+    <div class="modal-backdrop hidden" id="modalBackdrop" role="presentation"></div>
+
+    <dialog class="modal" id="eventModal">
+      <form method="dialog" class="modal-inner" id="eventForm">
+        <div class="modal-head">
+          <div class="modal-title" id="eventModalTitle">Nouvel evenement</div>
+          <button class="btn btn-ghost" id="btnCloseModal" value="cancel" type="submit">Fermer</button>
+        </div>
+
+        <div class="grid">
+          <label class="field">
+            <span>Titre</span>
+            <input class="input" id="evTitle" required maxlength="60" />
+          </label>
+
+          <label class="field">
+            <span>Groupe</span>
+            <select id="evGroup" class="select"></select>
+          </label>
+
+          <label class="field">
+            <span>Date</span>
+            <input class="input" id="evDate" type="date" required />
+          </label>
+
+          <label class="field">
+            <span>Heure</span>
+            <input class="input" id="evTime" type="time" required />
+          </label>
+
+          <div class="field span2">
+            <span>Meteo (jour)</span>
+            <div class="weather-inline muted" id="eventWeatherHint">Configure la ville meteo dans le groupe, puis choisis une date.</div>
+          </div>
+
+          <div class="field">
+            <span>Duree</span>
+            <div class="dur-row" aria-label="Duree de l'evenement">
+              <input class="input" id="evDurH" type="number" min="0" step="1" value="1" inputmode="numeric" aria-label="Heures" />
+              <span class="dur-sep">h</span>
+              <input class="input" id="evDurM" type="number" min="0" max="59" step="5" value="0" inputmode="numeric" aria-label="Minutes" />
+              <span class="dur-sep">min</span>
+            </div>
+          </div>
+
+          <label class="field">
+            <span>Rappel</span>
+            <select id="evReminder" class="select">
+              <option value="0">Aucun</option>
+              <option value="5">5 min avant</option>
+              <option value="15">15 min avant</option>
+              <option value="60">1 h avant</option>
+            </select>
+          </label>
+
+          <label class="field span2">
+            <span>Description</span>
+            <textarea class="textarea" id="evDescription" rows="4" maxlength="800" placeholder="Details, materiel, adresse..."></textarea>
+          </label>
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="btnDeleteEvent" type="button">Supprimer</button>
+          <div class="spacer"></div>
+          <button class="btn btn-ghost" id="btnExportIcs" type="button">Exporter .ics</button>
+          <button class="btn btn-ghost" id="btnCancelEvent" type="button">Annuler</button>
+          <button class="btn" id="btnSaveEvent" type="submit" value="default">Enregistrer</button>
+        </div>
+
+        <input type="hidden" id="evId" />
+      </form>
+    </dialog>
+
+    <dialog class="modal" id="detailsModal">
+      <form method="dialog" class="modal-inner">
+        <div class="modal-head">
+          <div class="modal-title">Evenement</div>
+          <button class="btn btn-ghost" value="cancel" type="submit">Fermer</button>
+        </div>
+        <div class="details" id="detailsBody"></div>
+
+        <div class="rating" id="ratingBox">
+          <div class="rating-head">
+            <div class="rating-title">Apres l'evenement</div>
+            <div class="rating-stats" id="ratingStats">👍 0 · 👎 0</div>
+          </div>
+          <div class="muted" id="ratingHint">Donne ton avis: bien ou pas bien.</div>
+          <div class="rating-actions">
+            <button class="btn btn-small" id="btnThumbUp" type="button" aria-label="Pouce en l'air">
+              <span class="thumb">👍</span>
+              Bien
+            </button>
+            <button class="btn btn-small" id="btnThumbDown" type="button" aria-label="Pouce vers le bas">
+              <span class="thumb">👎</span>
+              Pas bien
+            </button>
+            <button class="btn btn-ghost btn-small" id="btnClearVote" type="button">Annuler vote</button>
+          </div>
+        </div>
+
+        <div class="chat">
+          <div class="chat-head">
+            <div class="chat-title">Discussion</div>
+            <button class="btn btn-ghost btn-small" id="btnChangePseudo" type="button">Pseudo</button>
+          </div>
+          <div class="poll" id="pollBox">
+            <div class="poll-head">
+              <div class="poll-title">Sondage</div>
+              <div class="poll-actions">
+                <button class="btn btn-ghost btn-small" id="btnNewPoll" type="button">Nouveau</button>
+                <button class="btn btn-ghost btn-small danger" id="btnClearPoll" type="button">Supprimer</button>
+              </div>
+            </div>
+            <div class="muted" id="pollQuestion">Aucun sondage.</div>
+            <div class="poll-editor hidden" id="pollEditor" aria-label="Creation de sondage">
+              <input class="input" id="pollQInput" maxlength="120" placeholder="Question (ex: On mange quoi ?)" />
+              <textarea
+                class="textarea"
+                id="pollOptsInput"
+                rows="3"
+                maxlength="420"
+                placeholder="Choix (1 par ligne)\nEx:\nPizza\nBurger\nSushi"
+              ></textarea>
+              <div class="poll-editor-actions">
+                <button class="btn btn-small" id="btnCreatePoll" type="button">Creer</button>
+                <button class="btn btn-ghost btn-small" id="btnCancelPoll" type="button">Annuler</button>
+              </div>
+            </div>
+            <div class="poll-options" id="pollOptions"></div>
+            <div class="muted" id="pollHint"></div>
+          </div>
+          <div class="chat-list" id="chatList" aria-label="Messages"></div>
+          <div class="quick" id="eventQuick"></div>
+          <div class="chat-compose">
+            <input class="input" id="chatText" maxlength="500" placeholder="Ecrire un message..." />
+            <button class="btn btn-small" id="btnChatSend" type="button">Envoyer</button>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="btnEditFromDetails" type="button">Modifier</button>
+          <div class="spacer"></div>
+          <button class="btn btn-ghost" id="btnExportIcsFromDetails" type="button">Exporter .ics</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script type="module" src="./src/app.js?v=2026-02-09-7"></script>
+  </body>
+</html>

@@ -1,0 +1,36 @@
+{
+  "name": "kifekoi",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node server/index.js",
+    "start": "node server/index.js",
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "dev:prod": "node server_prod/index.js",
+    "client:install": "npm --prefix client install",
+    "client:dev": "npm --prefix client run dev",
+    "client:build": "npm --prefix client run build",
+    "client:preview": "npm --prefix client run preview"
+  },
+  "dependencies": {
+    "@prisma/client": "^7.3.0",
+    "@prisma/adapter-pg": "^7.3.0",
+    "argon2": "^0.43.0",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.4.0",
+    "helmet": "^7.1.0",
+    "nanoid": "^5.0.7",
+    "pg": "^8.13.1",
+    "resend": "^4.0.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "prisma": "^7.3.0"
+  }
+}
