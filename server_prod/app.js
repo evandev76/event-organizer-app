@@ -23,10 +23,21 @@ export function createApp() {
   // CORS for separate frontend domain (Vercel) calling the API (Railway) with cookies.
   // Configure one or more exact origins via CORS_ORIGINS="https://a.com,https://b.com".
   const corsOriginsRaw = String(process.env.CORS_ORIGINS || process.env.CORS_ORIGIN || "").trim();
-  const corsOrigins = corsOriginsRaw
+  let corsOrigins = corsOriginsRaw
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
+  // If not explicitly configured, default to allowing the configured public base URL.
+  if (!corsOrigins.length) {
+    const base = String(process.env.PUBLIC_BASE_URL || "").trim();
+    if (base) {
+      try {
+        corsOrigins = [new URL(base).origin];
+      } catch {
+        // ignore invalid PUBLIC_BASE_URL
+      }
+    }
+  }
   if (corsOrigins.length) {
     app.use((req, res, next) => {
       const origin = String(req.headers.origin || "");
@@ -36,6 +47,7 @@ export function createApp() {
         res.setHeader("Access-Control-Allow-Credentials", "true");
         res.setHeader("Access-Control-Allow-Headers", "content-type");
         res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+        res.setHeader("Access-Control-Max-Age", "600");
       }
       if (req.method === "OPTIONS") return res.status(204).send("");
       return next();
