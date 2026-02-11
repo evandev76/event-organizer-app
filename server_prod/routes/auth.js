@@ -54,6 +54,7 @@ export function authRouter() {
     const parsed = LoginSchema.safeParse(req.body || {});
     if (!parsed.success) return bad(res, 400, "Champs invalides.");
     const { email, password } = parsed.data;
+    const rememberMe = Boolean(req.body?.rememberMe);
 
     const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
     if (!user) return bad(res, 401, "Identifiants invalides.");
@@ -61,7 +62,7 @@ export function authRouter() {
     if (!okPwd) return bad(res, 401, "Identifiants invalides.");
 
     const s = await createSession({ userId: user.id, ip: req.ip, userAgent: req.get("user-agent") });
-    res.cookie(cookieName(), s.id, sessionCookieOptions());
+    res.cookie(cookieName(), s.id, sessionCookieOptions({ persistent: rememberMe }));
     return ok(res, { user: { id: user.id, email: user.email, displayName: user.displayName } });
   });
 
@@ -117,4 +118,3 @@ export function authRouter() {
 
   return r;
 }
-

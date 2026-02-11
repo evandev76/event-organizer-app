@@ -9,16 +9,19 @@ export function cookieName() {
   return COOKIE_NAME;
 }
 
-export function sessionCookieOptions() {
+export function sessionCookieOptions({ persistent = false } = {}) {
   const isProd = process.env.NODE_ENV === "production";
   const rawSameSite = String(process.env.SESSION_COOKIE_SAMESITE || "lax").toLowerCase();
   const sameSite = rawSameSite === "none" || rawSameSite === "lax" || rawSameSite === "strict" ? rawSameSite : "lax";
+  const cookieDays = Number(process.env.SESSION_COOKIE_DAYS || 30);
+  const maxAgeMs = Number.isFinite(cookieDays) && cookieDays > 0 ? Math.round(cookieDays * 24 * 60 * 60 * 1000) : 30 * 24 * 60 * 60 * 1000;
   return {
     httpOnly: true,
     // sameSite=none requires secure=true (browsers will reject otherwise).
     secure: isProd || sameSite === "none",
     sameSite,
     path: "/",
+    ...(persistent ? { maxAge: maxAgeMs } : {}),
   };
 }
 

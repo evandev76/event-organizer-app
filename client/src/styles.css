@@ -388,7 +388,7 @@ a {
   .fabRow {
     right: 12px;
     left: auto;
-    bottom: 78px; /* moved up (swap with search) */
+    bottom: 104px; /* lift + and notif/chat icons a bit higher on mobile */
   }
   .homeStatus {
     justify-content: space-between;
@@ -397,8 +397,34 @@ a {
     max-height: 220px;
   }
   .calCell {
-    min-height: 92px;
-    padding: 8px;
+    min-height: 62px;
+    padding: 4px;
+  }
+  .calDow {
+    padding: 6px 4px;
+    font-size: 10px;
+    letter-spacing: 0.03em;
+    text-align: center;
+  }
+  .calDate {
+    margin-bottom: 2px;
+    gap: 4px;
+  }
+  .calDateNum {
+    font-size: 13px;
+    gap: 3px;
+  }
+  .calDateNum .wicon {
+    width: 14px;
+    height: 14px;
+    margin-left: 2px;
+  }
+  .pill {
+    font-size: 9px;
+    padding: 1px 5px;
+  }
+  .calCell .evChip {
+    display: none;
   }
   .calendarTitle {
     font-size: 18px;
@@ -857,6 +883,21 @@ a {
   color: var(--muted);
   font-size: 12px;
 }
+.countdownBadge {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 196, 40, 0.28);
+  background: rgba(255, 196, 40, 0.12);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
 .dayItem.solo {
   padding: 14px 14px;
   background:
@@ -899,6 +940,8 @@ a {
 .calGrid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
+  width: 100%;
+  min-width: 0;
 }
 .calDow {
   padding: 10px 10px;
@@ -908,6 +951,9 @@ a {
   text-transform: uppercase;
   color: rgba(16, 20, 24, 0.62);
   background: linear-gradient(90deg, rgba(244, 238, 255, 0.92), rgba(255, 232, 160, 0.86));
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .calCell {
@@ -921,6 +967,7 @@ a {
   padding: 10px;
   cursor: pointer;
   transition: background 120ms ease, transform 120ms ease, box-shadow 120ms ease;
+  min-width: 0;
 }
 .calCell:nth-child(7n) {
   border-right: 0;
@@ -1040,4 +1087,38 @@ a {
 }
 .c6 {
   border-left-color: rgba(255, 61, 141, 0.85);
+}
+
+/* Keep this block at the end so mobile calendar sizing overrides desktop rules. */
+@media (max-width: 820px) {
+  .calCell {
+    min-height: 62px;
+    padding: 4px;
+  }
+  .calDow {
+    padding: 6px 4px;
+    font-size: 10px;
+    letter-spacing: 0.03em;
+    text-align: center;
+  }
+  .calDate {
+    margin-bottom: 2px;
+    gap: 4px;
+  }
+  .calDateNum {
+    font-size: 13px;
+    gap: 3px;
+  }
+  .calDateNum .wicon {
+    width: 14px;
+    height: 14px;
+    margin-left: 2px;
+  }
+  .pill {
+    font-size: 9px;
+    padding: 1px 5px;
+  }
+  .calCell .evChip {
+    display: none;
+  }
 }

@@ -36,8 +36,8 @@ export async function signup({ email, password, displayName }) {
   return data.user;
 }
 
-export async function login({ email, password }) {
-  const data = await apiFetch("/api/auth/login", { method: "POST", body: { email, password } });
+export async function login({ email, password, rememberMe = false }) {
+  const data = await apiFetch("/api/auth/login", { method: "POST", body: { email, password, rememberMe: Boolean(rememberMe) } });
   return data.user;
 }
 

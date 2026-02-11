@@ -51,15 +51,36 @@ function LoginPage() {
   const nav = useNavigate();
   const [sp] = useSearchParams();
   const next = sp.get("next") || "/home";
+  const REMEMBER_KEY = "kifekoi:auth:remember:v1";
 
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
+  const [rememberMe, setRememberMe] = React.useState(false);
   const [err, setErr] = React.useState("");
 
+  React.useEffect(() => {
+    try {
+      const raw = localStorage.getItem(REMEMBER_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (!saved || typeof saved !== "object") return;
+      if (saved.email) setEmail(String(saved.email));
+      setRememberMe(Boolean(saved.rememberMe));
+    } catch {
+      // Ignore malformed localStorage value.
+    }
+  }, []);
+
   const mut = useMutation({
-    mutationFn: () => api.login({ email, password }),
+    mutationFn: () => api.login({ email, password, rememberMe }),
     onSuccess: async () => {
       setErr("");
+      try {
+        if (rememberMe) localStorage.setItem(REMEMBER_KEY, JSON.stringify({ email: String(email || "").trim(), rememberMe: true }));
+        else localStorage.removeItem(REMEMBER_KEY);
+      } catch {
+        // Ignore localStorage failures.
+      }
       await qc.invalidateQueries({ queryKey: ["me"] });
       nav(next, { replace: true });
     },
@@ -71,15 +92,26 @@ function LoginPage() {
       <div className="title">Connexion</div>
       {err ? <div className="err">{err}</div> : null}
       <div className="row" style={{ marginTop: 10 }}>
-        <input className="input" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <input
+          className="input"
+          placeholder="Email"
+          value={email}
+          autoComplete="username"
+          onChange={(e) => setEmail(e.target.value)}
+        />
         <input
           className="input"
           placeholder="Mot de passe"
           type="password"
           value={password}
+          autoComplete="current-password"
           onChange={(e) => setPassword(e.target.value)}
         />
       </div>
+      <label className="muted" style={{ display: "inline-flex", alignItems: "center", gap: 8, marginTop: 10 }}>
+        <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
+        Se souvenir de moi
+      </label>
       <div className="row" style={{ marginTop: 10 }}>
         <button className="btn btn-primary" type="button" onClick={() => mut.mutate()} disabled={mut.isPending}>
           Se connecter
@@ -379,6 +411,25 @@ function setWeatherPref(groupCode, prefOrNull) {
   saveWeatherPrefs(prefs);
 }
 
+function compactDuration(ms) {
+  const totalMin = Math.max(0, Math.floor(ms / 60_000));
+  const d = Math.floor(totalMin / 1440);
+  const h = Math.floor((totalMin % 1440) / 60);
+  const m = totalMin % 60;
+  if (d > 0) return `${d}j ${h}h ${m}min`;
+  if (h > 0) return `${h}h ${m}min`;
+  return `${m}min`;
+}
+
+function eventCountdownLabel(ev, nowMs) {
+  const startMs = new Date(ev.start).getTime();
+  const endMs = new Date(ev.end).getTime();
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return "";
+  if (nowMs < startMs) return `Dans ${compactDuration(startMs - nowMs)}`;
+  if (nowMs <= endMs) return `En cours · finit dans ${compactDuration(endMs - nowMs)}`;
+  return `Termine depuis ${compactDuration(nowMs - endMs)}`;
+}
+
 function OnboardingTips({ user }) {
   const key = `kifekoi:onboarding:v1:${user?.id || "anon"}`;
   const [open, setOpen] = React.useState(() => localStorage.getItem(key) !== "done");
@@ -431,6 +482,7 @@ function LegacyHomePage() {
 
   const [monthDate, setMonthDate] = React.useState(() => new Date());
   const [selectedDay, setSelectedDay] = React.useState(() => new Date());
+  const [todayPlusTwoMode, setTodayPlusTwoMode] = React.useState(false);
   const [activeEventId, setActiveEventId] = React.useState("");
   const [evModalOpen, setEvModalOpen] = React.useState(false);
   const [evEditing, setEvEditing] = React.useState(null); // event or null (new)
@@ -487,6 +539,12 @@ function LegacyHomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupsQ.data, sp]);
 
+  // Avoid stale edit/delete context when switching groups.
+  React.useEffect(() => {
+    setEvModalOpen(false);
+    setEvEditing(null);
+  }, [activeCode]);
+
   // Keep URL in sync.
   React.useEffect(() => {
     const urlCode = (sp.get("g") || "").trim().toUpperCase();
@@ -518,6 +576,7 @@ function LegacyHomePage() {
     setNotifOpen(false);
     setActiveEventId("");
     setSelectedDay(new Date());
+    setTodayPlusTwoMode(false);
 
     setSwitchingGroup(true);
     setSwitchPulse((x) => x + 1);
@@ -563,7 +622,18 @@ function LegacyHomePage() {
   }, [events]);
 
   const selectedKey = toYmd(selectedDay);
-  const selectedEvents = byDay.get(selectedKey) || [];
+  const isTodayPlusTwo = todayPlusTwoMode && sameYmd(selectedDay, new Date());
+  const selectedKeys = React.useMemo(() => {
+    if (!isTodayPlusTwo) return [selectedKey];
+    const keys = [];
+    for (let i = 0; i < 3; i++) {
+      const d = new Date(selectedDay);
+      d.setDate(d.getDate() + i);
+      keys.push(toYmd(d));
+    }
+    return keys;
+  }, [isTodayPlusTwo, selectedKey, selectedDay]);
+  const selectedEvents = selectedKeys.flatMap((k) => byDay.get(k) || []);
   const activeEvent = activeEventId ? events.find((e) => e.id === activeEventId) : null;
   const shownSelectedEvents = search ? selectedEvents.filter((ev) => matches(ev.title) || matches(ev.description)) : selectedEvents;
 
@@ -604,6 +674,12 @@ function LegacyHomePage() {
     return ms || 0;
   })();
   const hasUnread = Boolean(activeCode && latestChatAt && latestChatAt > lastSeen);
+  const [nowTick, setNowTick] = React.useState(() => Date.now());
+
+  React.useEffect(() => {
+    const timer = setInterval(() => setNowTick(Date.now()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
 
   const createGroupMut = useMutation({
     mutationFn: () => api.createGroup(newGroup),
@@ -696,9 +772,10 @@ function LegacyHomePage() {
 
   const updateEventMut = useMutation({
     mutationFn: async () => {
-      if (!activeCode) throw new Error("Aucun groupe actif.");
       if (!evEditing?.id) throw new Error("Evenement invalide.");
       if (evEditing.canEdit === false) throw new Error("Seul le createur peut modifier.");
+      const code = String(evEditing.groupCode || activeCode || "").trim().toUpperCase();
+      if (!code) throw new Error("Aucun groupe actif.");
       const title = evTitle.trim();
       if (!title) throw new Error("Titre obligatoire.");
       const dH = Number(evDurH || 0);
@@ -707,7 +784,7 @@ function LegacyHomePage() {
       if (!Number.isFinite(duration) || duration < 5) throw new Error("Duree invalide.");
       const start = parseLocalDateTime(evDate, evTime);
       const end = addMinutes(start, duration);
-      return api.updateEvent(activeCode, evEditing.id, {
+      return api.updateEvent(code, evEditing.id, {
         title,
         description: evDesc.trim(),
         reminderMinutes: Number(evReminder || 0),
@@ -725,10 +802,11 @@ function LegacyHomePage() {
 
   const deleteEventMut = useMutation({
     mutationFn: async () => {
-      if (!activeCode) throw new Error("Aucun groupe actif.");
       if (!evEditing?.id) throw new Error("Evenement invalide.");
       if (evEditing.canEdit === false) throw new Error("Seul le createur peut supprimer.");
-      await api.deleteEvent(activeCode, evEditing.id);
+      const code = String(evEditing.groupCode || activeCode || "").trim().toUpperCase();
+      if (!code) throw new Error("Aucun groupe actif.");
+      await api.deleteEvent(code, evEditing.id);
     },
     onSuccess: async () => {
       setErr("");
@@ -843,7 +921,8 @@ function LegacyHomePage() {
     const start = new Date(ev.start);
     const end = new Date(ev.end);
     const durMin = Math.max(5, Math.round((end.getTime() - start.getTime()) / 60_000) || 60);
-    setEvEditing(ev);
+    // Freeze the group context used for edit/delete calls.
+    setEvEditing({ ...ev, groupCode: activeCode });
     setEvTitle(ev.title || "");
     setEvDesc(ev.description || "");
     setEvReminder(String(ev.reminderMinutes || 0));
@@ -1084,7 +1163,8 @@ function LegacyHomePage() {
           <div className="panel panelSub">
             <div className="title">Jour selectionne</div>
             <div className="muted" id="selectedDayLabel">
-              {formatHumanDate(selectedDay)} <WeatherIcon icon={weatherByDayKey.get(toYmd(selectedDay))} />
+              {isTodayPlusTwo ? "Aujourd'hui, demain et apres-demain" : formatHumanDate(selectedDay)}{" "}
+              {!isTodayPlusTwo ? <WeatherIcon icon={weatherByDayKey.get(toYmd(selectedDay))} /> : null}
             </div>
             <div className="dayList" style={{ marginTop: 10 }}>
               {!activeCode ? <div className="muted">Rejoins un groupe pour voir les evenements.</div> : null}
@@ -1113,6 +1193,7 @@ function LegacyHomePage() {
                           {new Date(ev.start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} →{" "}
                           {new Date(ev.end).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                         </div>
+                        <div className="countdownBadge">{eventCountdownLabel(ev, nowTick)}</div>
                       </button>
                     );
                   })
@@ -1164,9 +1245,7 @@ function LegacyHomePage() {
                       {shownMembersHub.map((m) => (
                         <div key={m.id} className="card">
                           <div style={{ fontWeight: 900 }}>{m.displayName}</div>
-                          <div className="muted">
-                            {m.email} · role: {m.role}
-                          </div>
+                          <div className="muted">role: {m.role}</div>
                         </div>
                       ))}
                     </div>
@@ -1187,6 +1266,7 @@ function LegacyHomePage() {
                     onClick={() => {
                       const t = new Date();
                       setSelectedDay(t);
+                      setTodayPlusTwoMode(true);
                       setMonthDate(new Date(t.getFullYear(), t.getMonth(), 1));
                     }}
                   >
@@ -1223,6 +1303,7 @@ function LegacyHomePage() {
                           .join(" ")}
                         onClick={() => {
                           setSelectedDay(d);
+                          setTodayPlusTwoMode(false);
                           setActiveEventId("");
                         }}
                       >
@@ -1256,6 +1337,7 @@ function LegacyHomePage() {
                   <div className="muted" style={{ marginTop: 6 }}>
                     {new Date(activeEvent.start).toLocaleString()} → {new Date(activeEvent.end).toLocaleString()}
                   </div>
+                  <div className="countdownBadge" style={{ marginTop: 8 }}>{eventCountdownLabel(activeEvent, nowTick)}</div>
                   {activeEvent.description ? <div className="card" style={{ marginTop: 10 }}>{activeEvent.description}</div> : null}
                 </div>
               ) : null}
@@ -1392,9 +1474,7 @@ function LegacyHomePage() {
                 {searchResults.members.map((m) => (
                   <div key={m.id} className="searchItem" style={{ cursor: "default" }}>
                     <div style={{ fontWeight: 900 }}>{m.displayName}</div>
-                    <div className="muted">
-                      {m.email} · role: {m.role}
-                    </div>
+                    <div className="muted">role: {m.role}</div>
                   </div>
                 ))}
               </div>
