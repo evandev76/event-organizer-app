@@ -16,6 +16,8 @@ import { weatherRouter } from "./routes/weather.js";
 export function createApp() {
   const app = express();
   app.disable("x-powered-by");
+  // Railway/Vercel sit behind proxies and set X-Forwarded-* headers.
+  app.set("trust proxy", 1);
   app.use(helmet());
   app.use(express.json({ limit: "300kb" }));
   app.use(cookieParser());
