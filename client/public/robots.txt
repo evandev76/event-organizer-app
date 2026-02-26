@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://kifekoi.vercel.app/sitemap.xml

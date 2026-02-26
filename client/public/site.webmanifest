@@ -1,0 +1,10 @@
+{
+  "name": "Kifekoi",
+  "short_name": "Kifekoi",
+  "description": "Organise facilement des evenements entre amis, par groupes et calendrier partage.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0713",
+  "theme_color": "#5b21b6",
+  "lang": "fr"
+}
